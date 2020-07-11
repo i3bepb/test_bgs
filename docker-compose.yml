@@ -1,0 +1,78 @@
+version: "3.8"
+networks:
+  net:
+    driver: bridge
+services:
+  rabbitmq:
+    image: rabbitmq:3.7-alpine
+    networks:
+      - net
+    env_file:
+      - .env
+  db:
+    image: postgres:12-alpine
+    networks:
+      - net
+    env_file:
+      - .env
+    command: ["postgres", "-p", "${POSTGRES_PORT}"]
+    expose:
+      - "${POSTGRES_PORT}"
+    volumes:
+      - ./docker/db/lib/docker-postgresql-multiple-databases/create-multiple-postgresql-databases.sh:/docker-entrypoint-initdb.d/create-multiple-postgresql-databases.sh:ro
+    # временно для разработки прокинут порт на хост потом можно будет скрыть
+    ports:
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+  php-fpm:
+    build:
+      context: ./docker/php-fpm
+      args:
+        MY_USER: "${MY_USER}"
+        MY_USER_ID: "${MY_USER_ID}"
+    networks:
+      - net
+    env_file:
+      - .env
+    volumes:
+      - ./application:${PHP_FPM_ROOTDIR}:rw
+      - ./docker/php-fpm/config/www.conf:/usr/local/etc/php-fpm.d/www.conf:ro
+      - ./docker/php-fpm/config/1000-addition.ini:/usr/local/etc/php/conf.d/1000-addition.ini:ro
+    depends_on:
+      - db
+      - rabbitmq
+    expose:
+      - "${PHP_FPM_PORT}"
+  nginx:
+    build:
+      context: ./docker/nginx
+      args:
+        MY_USER: "${MY_USER}"
+        MY_USER_ID: "${MY_USER_ID}"
+    networks:
+      - net
+    env_file:
+      - .env
+    volumes:
+      - ./docker/nginx/config/nginx.conf:/etc/nginx/templates/nginx.conf.template:ro
+      - ./application/public:/usr/share/nginx/html:rw
+    depends_on:
+      - php-fpm
+    ports:
+      - "${NGINX_PORT}:${NGINX_PORT}/tcp"
+    command: [nginx-debug, '-g', 'daemon off;']
+  php-cli:
+    build:
+      context: ./docker/php-cli
+      args:
+        MY_USER: "${MY_USER}"
+        MY_USER_ID: "${MY_USER_ID}"
+        PHP_FPM_ROOTDIR: "${PHP_FPM_ROOTDIR}"
+    networks:
+      - net
+    env_file:
+      - .env
+    depends_on:
+      - php-fpm
+    volumes:
+      - ./application:${PHP_FPM_ROOTDIR}:rw
+    command: ["php", "artisan", "queue:work"]
