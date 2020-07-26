@@ -1,6 +1,6 @@
 ## Как запустить
 
-1. Сконируйте себе приложение - **git clone git@github.com:i3bepb/test_bgs.git**
+1. Сконируйте себе приложение - **```git clone git@github.com:i3bepb/test_bgs.git```**
 
 2. Перейдите в папку приложения и подтяните также submodule **cd test_bgs && git submodule init && git submodule update**
 
